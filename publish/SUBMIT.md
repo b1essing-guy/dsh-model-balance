@@ -1,7 +1,9 @@
 # 上架 awesome-dsh-plugin：逐条清单
 
-> 本文件把 `awesome-dsh-plugin/awesome-dsh-plugin` 的 `contributing.md` 与实际代码里的
-> 要求，逐条对到本插件上。**标记 ✅ 的是仓库里已经就绪的，标记 👤 的是只有你能提供的。**
+> 本文件把 `awesome-dsh-plugin/awesome-dsh-plugin` 的 `contributing.md` 与实际代码里的要求，
+> 逐条对到本插件上。**✅ = 已就绪，👤 = 需要你本人操作，❓ = 待你决定。**
+
+仓库：https://github.com/b1essing-guy/dsh-model-balance
 
 ## 一、必须先说清的三件事
 
@@ -13,31 +15,31 @@
 3. **同类已有多个条目**（`GeekRicardo/dsh-balance`、`future007s/dsh-peak-indicator`、
    `Imnotndesh/dsh-peak-pricing-warning`、`534119219/chicheng-peak`、
    `guoliyuan97-png/dsh-game-hud` 等）。评审清单第 4 条明确问「是否已被现有条目覆盖」，
-   且规则是「谁更好谁上，不是先来后到」。所以差异化必须在 PR 描述里讲清楚：
-   本插件**可被代码验证**的不同点是 host 侧 `modelBalance.registerProvider()` 扩展点
-   （见 `types/index.d.ts`）与「不收任何 DSH 内部包 import」的零依赖装配。
+   且规则是「谁更好谁上，不是先来后到」。所以 PR 里要讲清可被代码验证的差异：
+   本插件的 host 侧 `modelBalance.registerProvider()` 扩展点
+   （见 [`types/index.d.ts`](../types/index.d.ts)）与「不收任何 DSH 内部 import」的零依赖装配。
 
-## 二、仓库侧（提交前）
+## 二、仓库侧
 
 | # | 要求 | 状态 |
 | --- | --- | --- |
-| 1 | 公开 GitHub 仓库，`url` 必须与仓库完全一致 | 👤 需要你建仓库并推送 |
-| 2 | `package.json` 声明 `dsh.bundle` manifest | ✅ 已声明 `dsh.bundle.patch` |
-| 3 | 仓库根有 `cordis.patch.yml` | ✅ 已就绪 |
-| 4 | 只声明 `dsh.client` 会被拒——我们同时声明了 bundle + client | ✅ |
-| 5 | 仓库创建满 **1 天**（CI 自动查，无 commit 数门槛） | 👤 新仓库必然要先等 |
-| 6 | 仓库加 `dsh-plugin` topic | 👤 一次点击 |
+| 1 | 公开 GitHub 仓库，条目 `url` 与仓库完全一致 | ✅ `b1essing-guy/dsh-model-balance` |
+| 2 | `package.json` 声明 `dsh.bundle` manifest | ✅ `dsh.bundle.patch` |
+| 3 | 仓库根有 `cordis.patch.yml` | ✅ |
+| 4 | 只声明 `dsh.client` 会被拒——本包 bundle + client 都声明了 | ✅ |
+| 5 | 仓库创建满 **1 天**（CI 硬门槛，从 `created_at` 算） | ⏳ 自然等待 |
+| 6 | 仓库加 `dsh-plugin` topic | 👤 仓库页 About 右侧齿轮 → Topics |
 | 7 | 真实可用的代码，非占位/纯 README | ✅ 56 项单测 + 已在真实 GUI 验证 |
-| 8 | 活跃维护（定期扫停更/归档仓库并移除） | 👤 你的承诺 |
-| 9 | 出仓库截图（1-8 张）→ 仓库根放 `screenshots.json` | 👤 需要你截图（我看不到你的屏幕） |
-| 10 | `@deepseek-ai/*` 用 `peerDependencies` 声明 | ✅ 已补（含预发布分支，已用真 semver 验证） |
-| 11 | 官方包不得放 `dependencies` | ✅ 本插件运行时依赖为零 |
+| 8 | 活跃维护 | 👤 你的承诺 |
+| 9 | 截图 1-8 张 → 仓库根 `screenshots.json` | 👤 需要你截图 |
+| 10 | `@deepseek-ai/*` 用 `peerDependencies` 声明 | ✅ 含预发布分支，已用真 semver 验证 |
+| 11 | 官方包不得放 `dependencies` | ✅ 运行时依赖为零 |
 
 ## 三、条目文件（PR 的全部内容）
 
-只需在 fork 里**新增一个文件**：`data/plugins/<owner>__<repo>.yml`。
-用 [`awesome-dsh-plugin-entry.yml`](awesome-dsh-plugin-entry.yml) 的内容，
-把 `OWNER/REPO` 换成你的。
+只需在 fork 里**新增一个文件**：
+`data/plugins/b1essing-guy__dsh-model-balance.yml`
+内容见 [`awesome-dsh-plugin-entry.yml`](awesome-dsh-plugin-entry.yml)。
 
 不要做的事（都已核对）：
 
@@ -60,45 +62,51 @@
 
 - 好处：市场能显示并**按下载量排序**；预构建安装可跳过 `allowBuilds` 构建授权。
 - **收录与是否发 npm 无关**，两种都能从 GitHub 安装。
-- 若发：已发布的 `package.json` 里 `repository` 字段**必须指回**本列表收录的那个仓库，
-  否则两者不会被关联（这是防「包挂到未认领的仓库」）。
-- 已就绪：`prepack` 钩子会在 `npm publish` / `npm pack` 前重新构建 `lib/client.js`，
-  保证发布的 tarball 里永远是新鲜产物。
-  （用 `prepack` 而不是 `prepare`：npm 11 会把 `prepare` 判为未批准的安装脚本。）
+- 若发：已发布包的 `repository` 字段必须指回本列表收录的仓库——**本包已填好**
+  （`git+https://github.com/b1essing-guy/dsh-model-balance.git`）。
+- 已就绪：`prepack` 钩子在 `npm publish` / `npm pack` 前重建 `lib/client.js`，
+  保证发布产物永远新鲜。（用 `prepack` 而非 `prepare`：npm 11 会把 `prepare`
+  判为未批准的安装脚本。）
 
-## 六、提交步骤
+## 六、提交步骤（**用 SSH**，因为本机 HTTPS 到 github.com 被重置）
+
+本机已配置 `~/.ssh/config`：`github.com` 自动走 `ssh.github.com:443`，
+所以下面可以照常写 `git@github.com:...`，不需要开代理。
 
 ```sh
-# 1) 建仓库并推送本插件目录内容到根
-git init && git add -A && git commit -m "feat: dsh-model-balance 0.1.0"
-git remote add origin https://github.com/OWNER/REPO.git && git push -u origin main
+# 1) 在 GitHub 网页上点一次 Fork：
+#    https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/fork
 
-# 2) 到仓库 Settings 加 topic：dsh-plugin   （或网页 Repositories 列表点齿轮）
-
-# 3) 等满 1 天（CI 硬门槛，无法绕过）
-
-# 4) fork 并 clone 列表仓库
-git clone https://github.com/OWNER/awesome-dsh-plugin.git && cd awesome-dsh-plugin
+# 2) 克隆你 fork 出来的那个（SSH 地址）
+git clone git@github.com:b1essing-guy/awesome-dsh-plugin.git
+cd awesome-dsh-plugin
 git checkout -b add-dsh-model-balance
 
-# 5) 新增条目文件（内容见 publish/awesome-dsh-plugin-entry.yml）
-#    data/plugins/OWNER__REPO.yml
+# 3) 新增条目文件
+#    data/plugins/b1essing-guy__dsh-model-balance.yml
+#    内容照抄 publish/awesome-dsh-plugin-entry.yml
 
-# 6) 本地预览你那一行长什么样（可选）
+# 4) 本地预览你那一行长什么样（可选）
 npm ci && node scripts/generate-readme.mjs
 
-# 7) 提交 PR
-git add data/plugins/OWNER__REPO.yml && git commit -m "Add dsh-model-balance"
-git push origin add-dsh-model-balance
+# 5) 提交并推到你自己的 fork
+git add data/plugins/b1essing-guy__dsh-model-balance.yml
+git commit -m "Add dsh-model-balance"
+git push -u origin add-dsh-model-balance
+
+# 6) 打开 PR（GitHub 会在你 push 后给出 Compare & pull request 提示）
+#    标题建议：Add dsh-model-balance
+#    正文里点明与既有余额类条目的差异（扩展点 + 零依赖），并附上仓库与截图链接
 ```
 
-## 七、仍然缺的东西（需要你决定/提供）
+## 七、仍然需要你处理的
 
 | 项 | 说明 |
 | --- | --- |
-| 仓库 owner/repo | 条目 `url` 与 `name` 都用它 |
-| 截图 1-8 张 | 你刚才已能看到余额与峰谷——那张就是素材；放仓库 `assets/` 并写 `screenshots.json` |
+| 邮箱验证 | 未验证的邮箱**不能创建 PR**。注册后请确认验证信已点掉（没收到的查 QQ 邮箱垃圾箱） |
+| `dsh-plugin` topic | 仓库页 About 右侧齿轮 → Topics 填 `dsh-plugin` |
+| 截图 1-8 张 | 你已能看到余额与峰谷徽标——把那张图存进仓库 `assets/`，再写一个 `screenshots.json` 列出路径（相对路径不能以 `/` 开头、不能含 `..`） |
 | 插件图标（可选） | 市场/插件管理页会显示；`icon` 相对 `package.json` 的路径，只认 svg/png/jpg/jpeg/webp，≤256 KiB，且解析后必须留在包目录内 |
-| 中英描述措辞 | 我已按「不许夸大」起草，你拍板 |
-| 是否发 npm | 决定是否补 `repository` 字段与 npm 账号流程 |
-| 署名与许可证主体 | 现为 MIT，需要确认署谁的名 |
+| 是否发 npm | 决定要不要走 npm 账号流程（`repository` 已填好） |
+| 许可证署名主体 | 现为 MIT，`LICENSE` 文件还没建，需要确认署谁的名 |
+| 1 天等待 | 从**仓库创建时刻**起算 24 小时。现在建好了，明天即可提 PR |

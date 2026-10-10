@@ -5,6 +5,14 @@
   "type": "module",
   "main": "src/index.js",
   "types": "types/index.d.ts",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/b1essing-guy/dsh-model-balance.git"
+  },
+  "homepage": "https://github.com/b1essing-guy/dsh-model-balance#readme",
+  "bugs": {
+    "url": "https://github.com/b1essing-guy/dsh-model-balance/issues"
+  },
   "exports": {
     ".": {
       "types": "./types/index.d.ts",
