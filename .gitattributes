@@ -1,0 +1,17 @@
+# 行尾统一为 LF。
+#
+# 为什么需要：Windows 上 Git 默认 core.autocrlf=true，会在检出时把文本文件换成 CRLF。
+# 结果是 Linux/macOS 的 CI（awesome-dsh-plugin 的 awesome-lint 与站点构建）
+# 会看到「每个文件都变了」的假 diff；而这种 diff 又最容易在评审时被当成无关改动。
+# 本仓库是 JS/JSON/YAML 源码，钉死 LF 是安全的。
+* text=auto eol=lf
+
+# 二进制资源不要做行尾/编码转换
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary

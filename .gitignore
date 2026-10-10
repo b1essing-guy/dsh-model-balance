@@ -1,0 +1,23 @@
+# 依赖与运行时产物
+node_modules/
+
+# 日志与临时文件
+*.log
+*.tmp
+.cache/
+
+# 编辑器与系统文件
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# ⚠️ 不要忽略 lib/ —— 见下方说明，它是必须提交的
+#
+# 本插件是「host 半边零构建 + client 半边构建产物」的结构：
+#   - host 半边：package.json 的 main 直接指向 src/index.js，源码即产物；
+#   - client 半边：exports['./client'] 指向 lib/client.js，这是 scripts/build-client.js
+#     生成的单文件（DSH 的浏览器模块系统只能加载单文件，所以必须把共享计价内核内联进去）。
+# 用户在 DSH 里安装本包时**不会**执行构建，因此 lib/client.js 必须随仓库/包一起提交。
+# 改动 src/shared/pricing.js 或 src/client.js 后，记得跑 `node scripts/build-client.js`
+# 并把生成的 lib/client.js 一起提交，否则线上加载的是旧产物。

@@ -1,0 +1,33 @@
+# 提交到 awesome-dsh-plugin 的条目文件
+#
+# 用法：在你 fork 的 awesome-dsh-plugin 仓库里新建
+#   data/plugins/<owner>__<repo>.yml
+# 文件内容就用下面这段（把 owner/repo 换成你自己的）。
+#
+# 规则要点（来自 contributing.md，已核对）：
+# - 只有 description.en 是必填；zh 写不了可以不写，维护者会补。
+# - 描述必须**属实**：维护者会读你的源码逐条核对；夸大是唯一容易被直接打回的原因。
+#   所以这里刻意不写"最/唯一/领先"之类营销词，也不写任何数字。
+# - 描述里若出现 ASCII 的「冒号+空格」必须给整行加引号（否则 YAML 会当成嵌套键）。
+#   下面两条都用单引号包住，最稳。
+# - 不要往这个文件里加 npm: 字段（会被校验直接拒绝，npm 映射由 registry 自动采集）。
+# - 不要手工改两个 README（由 data/plugins/*.yml 脚本生成），否则 PR 会撞到别人的行。
+# - category 从这组里挑：agi ui usage theme model identity session memory tools wsl
+#   browser vision voice docs skill workflow git notify dev security remote market fun
+#   本插件选 usage（Usage & Billing）——它做的事就是用量与计费展示。
+#   评委会说：「没人会因为分类被打回，有更贴切的维护者直接改」。
+
+url: https://github.com/OWNER/REPO
+name: OWNER/REPO
+category: usage
+description:
+  en: 'Fixed client badge showing the active provider''s balance and DeepSeek peak/off-peak pricing, read from the DSH account service or the official balance API, plus a host service that other plugins register balance providers into.'
+  zh: '在客户端固定位置常驻显示当前服务商的余额与 DeepSeek 峰谷时段（数据取自 DSH 账号服务或官方余额接口），并暴露 host 服务供其他插件注册余额数据源。'
+
+# ── 可选：不发 npm 时的预构建包 ─────────────────────────────────────────────
+# 只有当仓库**无法从源码安装**时才必需；否则可选。
+# 注意 latest/download/ 只在请求时解析 latest，文件名是照字面取的：
+# 资产名带版本号会「提交当天有效、下一次发版就 404」。要么让资产名不带版本，
+# 要么钉住 tag（钉 tag 时带版本号反而是正常写法）。
+#
+# tarball: https://github.com/OWNER/REPO/releases/latest/download/dsh-model-balance.tgz
