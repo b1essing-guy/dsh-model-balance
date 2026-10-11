@@ -50,7 +50,7 @@
     'panel.granted': '赠金',
     'panel.toppedUp': '充值',
     'panel.window': '计费时段',
-    'panel.windowValue': '工作日 09:00–12:00、14:00–18:00；周末全天低谷',
+    'panel.windowValue': '工作日 09:00–12:00、14:00–18:00 为高峰；周末与法定节假日全天低谷',
     'panel.next': '下次切换',
     'panel.nextWeekend': '{day} 09:00 进入高峰',
     'panel.prices': '单价（每百万 tokens）',
@@ -59,6 +59,9 @@
     'panel.updated': '更新于',
     'panel.hint': '点击立即刷新',
     'panel.never': '尚未取到数据',
+    'panel.model': '当前模型',
+    'panel.pricesUnregistered': '当前模型未登记单价（不套用其他模型）',
+    'holiday.idle': '法定节假日低谷',
   };
 
   /** 英文字典 */
@@ -78,7 +81,7 @@
     'panel.granted': 'Granted',
     'panel.toppedUp': 'Topped up',
     'panel.window': 'Pricing windows',
-    'panel.windowValue': 'Weekdays 09:00–12:00, 14:00–18:00; off-peak all weekend',
+    'panel.windowValue': 'Weekdays 09:00–12:00, 14:00–18:00 are peak; off-peak all weekend and on public holidays',
     'panel.next': 'Next switch',
     'panel.nextWeekend': 'Peak resumes {day} 09:00',
     'panel.prices': 'Unit price (per million tokens)',
@@ -87,6 +90,9 @@
     'panel.updated': 'Updated',
     'panel.hint': 'Click to refresh',
     'panel.never': 'No data yet',
+    'panel.model': 'Model',
+    'panel.pricesUnregistered': 'No published price for this model (no substitution from other models)',
+    'holiday.idle': 'Off-peak (public holiday)',
   };
 
   /** 样式：颜色一律走主题 token（token 自带明暗两套值，故明暗主题自动适配） */
@@ -226,9 +232,11 @@
     var tierLabel = tier.tier === 'peak' ? t('tier.peak') : t('tier.idle');
     var nextTierLabel = tier.nextTier === 'peak' ? t('tier.peak') : t('tier.idle');
 
-    // 周末全天低谷时，40 小时的倒计时没有行动价值 —— 直接给「周末全天低谷」这个事实
+    // 休息日（周末 / 法定节假日）全天低价时，几十小时的倒计时没有行动价值
+    // —— 直接给「全天低谷」这个事实；倒计时留给工作日时段。
+    var restLabel = tier.basis === 'holiday' ? t('holiday.idle') : t('weekend.idle');
     var countdownText = null;
-    if (tier.basis !== 'weekend') {
+    if (tier.basis !== 'weekend' && tier.basis !== 'holiday') {
       countdownText = t('countdown.to')
         .replace('{tier}', nextTierLabel)
         .replace('{time}', formatDuration(tier.msToSwitch));
@@ -239,26 +247,40 @@
     if (balance !== null && typeof balance.provider === 'string' && balance.provider.length > 0) {
       details.push([t('panel.source'), balance.provider]);
     }
+    // 当前模型：单价按模型不同，详情里必须明示是哪个模型，否则用户无从判断价对不对
+    var activeModel = state !== null && typeof state.selectedModel === 'string' ? state.selectedModel : '';
+    if (activeModel.length > 0) {
+      details.push([t('panel.model'), activeModel]);
+    }
     if (balance !== null && balance.ok === true && balance.data && typeof balance.data === 'object') {
       details.push([t('panel.total'), formatMoney(balance.data.total, balance.data.currency)]);
       details.push([t('panel.granted'), formatMoney(balance.data.granted, balance.data.currency)]);
       details.push([t('panel.toppedUp'), formatMoney(balance.data.toppedUp, balance.data.currency)]);
     }
     details.push([t('panel.window'), t('panel.windowValue')]);
-    if (tier.basis === 'weekend') {
+    if (tier.basis === 'weekend' || tier.basis === 'holiday') {
       details.push([t('panel.next'), t('panel.nextWeekend').replace('{day}', weekdayLabel(tier.nextSwitchAt, timeZone, locale))]);
     } else {
       details.push([t('panel.next'), formatClock(tier.nextSwitchAt, timeZone) + ' · ' + nextTierLabel]);
     }
 
+    // 单价**按模型**取：只认当前模型的条目，查不到就不显示任何数字。
+    // 绝不回退到别的模型的价——把 V4-Pro 的价挂在 V4.1-Flash 名下，比不显示更糟。
     var prices = null;
-    var table = pricing.priceTable;
-    if (input.config.hoverPrices !== false && table && typeof table === 'object' && table.peak && table.idle) {
-      prices = {
-        title: t('panel.prices') + '（' + (table.model || '') + '）',
-        peak: t('panel.pricePeak') + '：' + formatPriceRow(table.peak),
-        idle: t('panel.priceIdle') + '：' + formatPriceRow(table.idle),
-      };
+    var pricesNote = null;
+    if (input.config.hoverPrices !== false) {
+      var tables = pricing.priceTables && typeof pricing.priceTables === 'object' ? pricing.priceTables : {};
+      var entry = activeModel.length > 0 && tables[activeModel] ? tables[activeModel] : null;
+      if (entry && entry.peak && entry.idle) {
+        var checkedAt = pricing.priceSource && pricing.priceSource.checkedAt ? pricing.priceSource.checkedAt : '';
+        prices = {
+          title: t('panel.prices') + '（' + (entry.label || activeModel) + (checkedAt ? ' · ' + checkedAt : '') + '）',
+          peak: t('panel.pricePeak') + '：' + formatPriceRow(entry.peak),
+          idle: t('panel.priceIdle') + '：' + formatPriceRow(entry.idle),
+        };
+      } else {
+        pricesNote = t('panel.pricesUnregistered');
+      }
     }
 
     var updatedAt = balance !== null && typeof balance.fetchedAt === 'number' ? balance.fetchedAt : 0;
@@ -269,9 +291,12 @@
       tier: tier.tier,
       tierLabel: tierLabel,
       countdownText: countdownText,
+      restLabel: restLabel,
       basis: tier.basis,
       details: details,
       prices: prices,
+      pricesNote: pricesNote,
+      model: activeModel,
       updatedText: updatedAt > 0 ? formatClock(updatedAt, timeZone) : t('panel.never'),
       hint: t('panel.hint'),
       stale: input.error !== null && input.error !== undefined,
@@ -441,7 +466,7 @@
           if (vm.countdownText !== null) {
             badgeChildren.push(el('span', { className: 'dshmb-count', key: 'count' }, vm.countdownText));
           } else {
-            badgeChildren.push(el('span', { className: 'dshmb-count', key: 'weekend' }, t('weekend.idle')));
+            badgeChildren.push(el('span', { className: 'dshmb-count', key: 'rest' }, vm.restLabel));
           }
 
           var panel = null;
@@ -455,6 +480,10 @@
               panelChildren.push(el('div', { className: 'dshmb-row-key', key: 'pt' }, vm.prices.title));
               panelChildren.push(el('div', { className: 'dshmb-row', key: 'pp' }, vm.prices.peak));
               panelChildren.push(el('div', { className: 'dshmb-row', key: 'pi' }, vm.prices.idle));
+            } else if (vm.pricesNote !== null) {
+              // 当前模型没有登记单价：说明情况，但**不显示任何数字**
+              panelChildren.push(el('div', { className: 'dshmb-sep', key: 'sep' }));
+              panelChildren.push(el('div', { className: 'dshmb-row-key', key: 'pn' }, vm.pricesNote));
             }
             panelChildren.push(el('div', { className: 'dshmb-sep', key: 'sep2' }));
             panelChildren.push(

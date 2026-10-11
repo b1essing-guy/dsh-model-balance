@@ -121,6 +121,37 @@ test('规则可由 host 覆盖：窗口 / 周末口径变了不需要改展示�
   assert.equal(peakValleyAt(saturday, { weekendAllIdle: false }).tier, 'peak');
 });
 
+test('法定节假日：命中该日则全天空闲，且下次切换顺延到节假日之后的工作日', () => {
+  // 2026-10-12 是周一（工作日），把它标成法定节假日
+  const monday = beijing(2026, 10, 12, 10, 0);
+  // 默认规则（holidays 为空）：周一 10:00 是高峰
+  assert.equal(peakValleyAt(monday).tier, 'peak');
+  // 标为节假日后：全天空闲
+  const holiday = peakValleyAt(monday, { holidays: ['2026-10-12'] });
+  assert.equal(holiday.tier, 'idle');
+  assert.equal(holiday.basis, 'holiday');
+  assert.equal(holiday.holiday, true);
+  assert.equal(beijingClock(new Date(holiday.nextSwitchAt)), '2026-10-13 09:00');
+});
+
+test('法定节假日：与周末叠加时仍全天空闲，且不会把节假日当成切换日', () => {
+  // 周六本就空闲；再把下周一也标成节假日，下次切换应落到周二
+  const saturday = beijing(2026, 10, 10, 10, 0);
+  const result = peakValleyAt(saturday, { holidays: ['2026-10-12'] });
+  assert.equal(result.tier, 'idle');
+  assert.equal(result.basis, 'weekend', '周末优先归类为 weekend（用于区分文案）');
+  assert.equal(beijingClock(new Date(result.nextSwitchAt)), '2026-10-13 09:00');
+});
+
+test('节假日为空数组时行为与不传完全一致（默认不把任何日期当节假日）', () => {
+  const monday = beijing(2026, 10, 12, 10, 0);
+  const withEmpty = peakValleyAt(monday, { holidays: [] });
+  const withoutKey = peakValleyAt(monday);
+  assert.equal(withEmpty.tier, withoutKey.tier);
+  assert.equal(withEmpty.basis, withoutKey.basis);
+  assert.equal(withEmpty.nextSwitchAt, withoutKey.nextSwitchAt);
+});
+
 test('默认规则与 DEEPSEEK_PEAK_WINDOWS 常量一致（防止两处口径漂移）', () => {
   assert.deepEqual(DEEPSEEK_PEAK_WINDOWS, [
     { start: '09:00', end: '12:00' },

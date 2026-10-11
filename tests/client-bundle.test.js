@@ -67,17 +67,28 @@ const RULES = {
     { start: '14:00', end: '18:00' },
   ],
   weekendAllIdle: true,
-  priceTable: {
-    model: 'DeepSeek-V4-Pro',
-    peak: { inputCacheMiss: 9, output: 27, inputCacheHit: 0.3 },
-    idle: { inputCacheMiss: 4.5, output: 13.5, inputCacheHit: 0.15 },
+  holidays: [],
+  // 单价**按模型 id**索引（与 host 的 DEEPSEEK_PRICE_TABLES 同形）。数值取自官方定价页。
+  priceTables: {
+    'deepseek-flash': {
+      label: 'DeepSeek-V4.1-Flash',
+      peak: { inputCacheMiss: 2, output: 8, inputCacheHit: 0.04 },
+      idle: { inputCacheMiss: 1, output: 4, inputCacheHit: 0.02 },
+    },
+    'deepseek-v4-pro': {
+      label: 'DeepSeek-V4-Pro-0813',
+      peak: { inputCacheMiss: 9, output: 27, inputCacheHit: 0.3 },
+      idle: { inputCacheMiss: 4.5, output: 13.5, inputCacheHit: 0.15 },
+    },
   },
+  priceSource: { checkedAt: '2026-10-10' },
 };
 
 function officialState(overrides = {}) {
   return {
     rev: 1,
     selectedProvider: 'deepseek-account',
+    selectedModel: 'deepseek-v4-pro',
     balance: {
       ok: true,
       provider: 'deepseek-account',
@@ -220,9 +231,13 @@ test('产物：悬停详情含数据源/总可用/赠金/充值/时段/下次切
   assert.ok(labels.includes(zh('panel.toppedUp')));
   assert.ok(labels.includes(zh('panel.window')));
   assert.ok(labels.includes(zh('panel.next')));
+  // 详情里必须明示当前模型（否则用户无从判断单价是不是自己那一档）
+  const modelRow = view.details.find((pair) => pair[0] === zh('panel.model'));
+  assert.equal(modelRow[1], 'deepseek-v4-pro');
   assert.equal(view.prices.peak, '高峰：输入 9 / 输出 27 / 缓存命中 0.3');
   assert.equal(view.prices.idle, '低谷：输入 4.5 / 输出 13.5 / 缓存命中 0.15');
-  assert.match(view.prices.title, /DeepSeek-V4-Pro/);
+  assert.match(view.prices.title, /DeepSeek-V4-Pro-0813/);
+  assert.match(view.prices.title, /2026-10-10/);
   assert.equal(view.updatedText, '08:30');
 });
 
@@ -238,6 +253,62 @@ test('产物：hoverPrices=false 时不带单价段', () => {
     }),
   );
   assert.equal(view.prices, null);
+  assert.equal(view.pricesNote, null, '关掉单价展示时连说明也不该出现');
+});
+
+test('产物：单价按当前模型取 —— deepseek-flash 必须显示 Flash 的价（本次修复的核心回归）', () => {
+  const view = normalise(
+    T.buildViewModel({
+      state: officialState({ selectedModel: 'deepseek-flash' }),
+      error: null,
+      nowMs: beijing(2026, 10, 9, 10, 0),
+      config: { hoverPrices: true },
+      t: zh,
+      locale: 'zh',
+    }),
+  );
+  // 修复前这里显示的是 V4-Pro 的 9 / 27 / 0.3 —— 拿别的模型的价挂在自己名下
+  assert.equal(view.prices.peak, '高峰：输入 2 / 输出 8 / 缓存命中 0.04');
+  assert.equal(view.prices.idle, '低谷：输入 1 / 输出 4 / 缓存命中 0.02');
+  assert.match(view.prices.title, /DeepSeek-V4.1-Flash/);
+});
+
+test('产物：模型未登记单价 → 只给说明，绝不套用其他模型的价', () => {
+  const view = normalise(
+    T.buildViewModel({
+      state: officialState({ selectedModel: 'some-unregistered-model' }),
+      error: null,
+      nowMs: beijing(2026, 10, 9, 10, 0),
+      config: { hoverPrices: true },
+      t: zh,
+      locale: 'zh',
+    }),
+  );
+  assert.equal(view.prices, null, '未登记时不得显示任何单价数字');
+  assert.equal(view.pricesNote, '当前模型未登记单价（不套用其他模型）');
+});
+
+test('产物：法定节假日全天空闲（官方口径，早期媒体版漏了这条）', () => {
+  const state = officialState({
+    selectedModel: 'deepseek-flash',
+    pricing: { ...RULES, holidays: ['2026-10-12'] }, // 该日其实是周一，本应高峰
+  });
+  const view = normalise(
+    T.buildViewModel({
+      state,
+      error: null,
+      nowMs: beijing(2026, 10, 12, 10, 0),
+      config: { hoverPrices: true },
+      t: zh,
+      locale: 'zh',
+    }),
+  );
+  assert.equal(view.tier, 'idle');
+  assert.equal(view.basis, 'holiday');
+  assert.equal(view.countdownText, null);
+  assert.equal(view.restLabel, '法定节假日低谷');
+  const next = view.details.find((pair) => pair[0] === zh('panel.next'));
+  assert.match(next[1], /周二 09:00 进入高峰/);
 });
 
 test('产物：英文字典可用（AC8 的文案侧证据）', () => {

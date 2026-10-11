@@ -19,6 +19,7 @@ export class BalanceStateStore {
     this.rev = 0;
     this.balance = null;
     this.selectedProvider = '';
+    this.selectedModel = '';
   }
 
   /** 下一个 rev：`Date.now()` 与「上一个 +1」取大 */
@@ -44,11 +45,24 @@ export class BalanceStateStore {
     this.nextRev();
   }
 
+  /**
+   * 记录当前选中的**模型 id**。
+   *
+   * 为什么要它：单价是**按模型**不同的（V4.1-Flash 与 V4-Pro 差 4~5 倍）。展示层必须知道
+   * 「现在跑的是哪个模型」，才能只显示这个模型的单价；否则就会出现「拿别的模型的价当自己的」
+   * 这种误导性展示——这正是这个字段被加进来的原因。
+   */
+  writeSelectedModel(modelId) {
+    this.selectedModel = String(modelId ?? '');
+    this.nextRev();
+  }
+
   /** 当前状态（GET /state 的响应体） */
   read() {
     return {
       rev: this.rev,
       selectedProvider: this.selectedProvider,
+      selectedModel: this.selectedModel,
       balance: this.balance,
       pricing: this.pricing,
     };

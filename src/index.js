@@ -16,7 +16,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { DEEPSEEK_PRICE_TABLE, DEEPSEEK_PRICING_RULES } from './host/deepseek-rules.js';
+import { DEEPSEEK_PRICE_SOURCE, DEEPSEEK_PRICE_TABLES, DEEPSEEK_PRICING_RULES } from './host/deepseek-rules.js';
 import { messageOf } from './host/internal.js';
 import { deepseekAccountProvider } from './host/providers/deepseek-account.js';
 import { deepseekOfficialProvider } from './host/providers/deepseek-official.js';
@@ -139,7 +139,8 @@ export function apply(ctx, config) {
   const registry = createRegistry();
   const store = new BalanceStateStore({
     ...DEEPSEEK_PRICING_RULES,
-    priceTable: DEEPSEEK_PRICE_TABLE,
+    priceTables: DEEPSEEK_PRICE_TABLES,
+    priceSource: DEEPSEEK_PRICE_SOURCE,
   });
 
   // ---- 内置两条 deepseek 路由：走**同一个**扩展点注册 ----
@@ -186,6 +187,8 @@ export function apply(ctx, config) {
       const selection = ctx.agentDefaultModel.currentSelection();
       const providerId = String(selection?.provider ?? '');
       store.writeSelectedProvider(providerId);
+      // 模型 id 也要记：单价按模型不同，展示层要靠它只显示当前模型的价（见 state.js 的说明）
+      store.writeSelectedModel(String(selection?.model ?? ''));
       const result = await registry.query(providerId, resolveKey, resolveAccount);
       store.writeBalance({ ...result, fetchedAt: Date.now(), manual });
     } catch (error) {
