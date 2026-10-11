@@ -8,7 +8,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { createRegistry } from '../src/host/registry.js';
+import { ACCOUNT_SERVICE_ABSENT, createRegistry } from '../src/host/registry.js';
 
 /** 一个合法的 stub provider */
 function stubProvider(overrides = {}) {
@@ -159,15 +159,27 @@ test('AC5：provider 返回垃圾 → 被拦成 fetch-error（第三方代码不
   assert.ok(registry.providers().length >= 0);
 });
 
-test('账号路由（mode=none）：账号服务不在场 → credential-missing（不是 fetch-error）', async () => {
+test('账号路由（mode=none）：区分「尚未就绪」与「未登录」（都是 credential-missing）', async () => {
   const registry = createRegistry();
   registry.registerProvider(
     stubProvider({ credential: { mode: 'none' }, ids: ['deepseek-account'] }),
     'test-suite',
   );
+
+  // 启动竞态：服务缺席 → 文案必须说明"尚未就绪"，因为这条会自愈
+  const notReady = await registry.query('deepseek-account', keyPresent, async () => ACCOUNT_SERVICE_ABSENT);
+  assert.equal(notReady.reason, 'credential-missing');
+  assert.match(notReady.message, /尚未就绪/);
+  assert.equal('data' in notReady, false);
+
+  // 服务在但没登录（null/undefined）→ 文案指向"未登录/不在场"
   const absent = await registry.query('deepseek-account', keyPresent, async () => undefined);
   assert.equal(absent.reason, 'credential-missing');
-  assert.match(absent.message, /账号服务不在场/);
+  assert.match(absent.message, /不在场或未登录/);
+
+  const signedOut = await registry.query('deepseek-account', keyPresent, async () => null);
+  assert.equal(signedOut.reason, 'credential-missing');
+  assert.match(signedOut.message, /不在场或未登录/);
 
   const noResolver = await registry.query('deepseek-account', keyPresent, undefined);
   assert.equal(noResolver.reason, 'credential-missing');

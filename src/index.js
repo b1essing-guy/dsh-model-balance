@@ -20,7 +20,8 @@ import { DEEPSEEK_PRICE_SOURCE, DEEPSEEK_PRICE_TABLES, DEEPSEEK_PRICING_RULES } 
 import { messageOf } from './host/internal.js';
 import { deepseekAccountProvider } from './host/providers/deepseek-account.js';
 import { deepseekOfficialProvider } from './host/providers/deepseek-official.js';
-import { createRegistry } from './host/registry.js';
+import { createRegistry, ACCOUNT_SERVICE_ABSENT } from './host/registry.js';
+import { isNotReadyFailure, nextRetryDelayMs } from './host/retry-policy.js';
 import { BalanceStateStore } from './host/state.js';
 
 /** 插件名 / Cordis entry 名（必须与 package.json name 一致） */
@@ -177,12 +178,20 @@ export function apply(ctx, config) {
    */
   const resolveAccount = async () => {
     const account = soft('deepseekAccount');
-    if (account === undefined || typeof account.getBalance !== 'function') return undefined;
+    // 服务缺席时返回**哨兵**而不是 undefined：让注册表能区分「还没就绪（会自愈）」
+    // 与「服务在但未登录（要用户处理）」，两者的文案不该一样。
+    if (account === undefined || typeof account.getBalance !== 'function') return ACCOUNT_SERVICE_ABSENT;
     return account.getBalance(accountClientMetadata());
   };
 
-  /** 刷新余额并写入轮询状态——host 侧**唯一**的余额查询点 */
+  /**
+   * 刷新余额并写入轮询状态——host 侧**唯一**的余额查询点。
+   *
+   * @param {boolean} [manual] 是否用户主动触发（影响前端"必弹提示"的口径）
+   * @returns {Promise<object>} 本次写进状态的那份结果（调用方据此决定要不要快速重试）
+   */
   const refreshBalance = async (manual = false) => {
+    let leaf;
     try {
       const selection = ctx.agentDefaultModel.currentSelection();
       const providerId = String(selection?.provider ?? '');
@@ -190,18 +199,20 @@ export function apply(ctx, config) {
       // 模型 id 也要记：单价按模型不同，展示层要靠它只显示当前模型的价（见 state.js 的说明）
       store.writeSelectedModel(String(selection?.model ?? ''));
       const result = await registry.query(providerId, resolveKey, resolveAccount);
-      store.writeBalance({ ...result, fetchedAt: Date.now(), manual });
+      leaf = { ...result, fetchedAt: Date.now(), manual };
     } catch (error) {
       // 凭证解析之类的意外异常也落成 fetch-error：不吞、不伪造数字
-      store.writeBalance({
+      leaf = {
         ok: false,
         provider: 'unknown',
         reason: 'fetch-error',
         message: messageOf(error),
         fetchedAt: Date.now(),
         manual,
-      });
+      };
     }
+    store.writeBalance(leaf);
+    return leaf;
   };
 
   const handleRoute = async (rawUrl, method) => {
@@ -249,16 +260,46 @@ export function apply(ctx, config) {
     'dsh-model-balance: routes',
   );
 
-  // 周期刷新 + 启动即拉一次。倒计时不在这里——它由展示层按规则本地每秒算，不产生任何请求。
+  // 周期刷新 + 启动即拉一次。
+  //
+  // **为什么这里要重试**：插件激活早于 `deepseekAccount` 服务就绪，所以启动那次立刻刷新
+  // 很可能拿到 `credential-missing`；若不管它，下一次刷新要等 refreshSec（默认 600 秒），
+  // 用户就会看着「缺少凭证」10 分钟。实测证据：进程启动 09:22:56、失败 09:22:58、
+  // 随后 1.8 分钟内无任何刷新。因此对「未就绪类」失败按 retry-policy 的退避序列快速重试
+  // （3s→10s→30s→60s，成功即复位，用尽则落回常规周期）。
+  // 倒计时不在这里——它由展示层按规则本地每秒算，不产生任何请求。
   ctx.effect(() => {
     let stopped = false;
-    void refreshBalance(false);
-    const timer = setInterval(() => {
-      if (!stopped) void refreshBalance(false);
+    let retryTimer = null;
+    let notReadyAttempts = 0;
+
+    const run = async () => {
+      const leaf = await refreshBalance(false);
+      if (stopped) return;
+      if (isNotReadyFailure(leaf)) {
+        const delay = nextRetryDelayMs(notReadyAttempts);
+        notReadyAttempts += 1;
+        if (delay === null) return; // 退避用尽：落回常规周期，不再额外打扰
+        if (retryTimer !== null) clearTimeout(retryTimer);
+        retryTimer = setTimeout(() => {
+          retryTimer = null;
+          void run();
+        }, delay);
+        return;
+      }
+      notReadyAttempts = 0;
+    };
+
+    void run();
+    const ticker = setInterval(() => {
+      if (!stopped) void run();
     }, settings.refreshSec * 1000);
+
     return () => {
       stopped = true;
-      clearInterval(timer);
+      clearInterval(ticker);
+      if (retryTimer !== null) clearTimeout(retryTimer);
+      retryTimer = null;
     };
   }, 'dsh-model-balance: refresh timer');
 

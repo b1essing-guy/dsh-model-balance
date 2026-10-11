@@ -26,6 +26,16 @@ function messageOf(error) {
 }
 
 /**
+ * 「账号服务尚未就绪」的显式信号（哨兵对象）。
+ *
+ * 为什么不直接用 `undefined`：它同时表示「服务不在场」和「服务在但没登录」，
+ * 但这两种情况**该说的话不一样**——前者会自愈（DSH 还在启动，重试即可），
+ * 后者要用户去登录。调用方（src/index.js 的 resolveAccount）在服务缺席时返回本哨兵，
+ * 本文件据此给出精确文案；调用方若想当普通"缺席"处理，把它当 `undefined` 即可。
+ */
+export const ACCOUNT_SERVICE_ABSENT = { dshModelBalance: 'account-service-absent' };
+
+/**
  * 校验一个 provider 定义。第三方代码是不可信输入，**形状不对就直接拒绝**，
  * 否则坏定义会在每次轮询里炸，排障成本远高于注册时立刻失败。
  */
@@ -140,6 +150,11 @@ export function createRegistry() {
           return snapshot;
         };
         const first = await resolveAccountOnce();
+        if (first === ACCOUNT_SERVICE_ABSENT) {
+          // 服务缺席：这是启动竞态，会自愈（host 侧会按退避序列快速重试）——
+          // 文案必须与"未登录"区分开，否则用户会以为要自己去配置凭证
+          return failed(id, 'credential-missing', '账号服务尚未就绪（' + id + '）');
+        }
         if (first === undefined || first === null) {
           return failed(id, 'credential-missing', '账号服务不在场或未登录（' + id + '）');
         }
