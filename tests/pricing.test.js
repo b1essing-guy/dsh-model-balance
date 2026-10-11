@@ -17,6 +17,7 @@ import {
   formatMoney,
   peakValleyAt,
 } from '../src/shared/pricing.js';
+import { DEEPSEEK_PRICING_RULES } from '../src/host/deepseek-rules.js';
 
 /** 北京时间钟表时间 → 瞬时（北京时间 = UTC+8，无夏令时） */
 function beijing(year, month, day, hour, minute) {
@@ -150,6 +151,35 @@ test('节假日为空数组时行为与不传完全一致（默认不把任何�
   assert.equal(withEmpty.tier, withoutKey.tier);
   assert.equal(withEmpty.basis, withoutKey.basis);
   assert.equal(withEmpty.nextSwitchAt, withoutKey.nextSwitchAt);
+});
+
+test('官方节假日表：来自国务院办公厅 2026 年通知，且与判定结果一致', () => {
+  const rules = DEEPSEEK_PRICING_RULES;
+
+  // 表本身：33 天、全属 2026、无重复；出处必须指向 gov.cn 与国务院办公厅
+  assert.equal(rules.holidays.length, 33);
+  assert.ok(rules.holidays.every((day) => /^2026-\d{2}-\d{2}$/.test(day)), '日期格式必须为 2026-MM-DD');
+  assert.equal(new Set(rules.holidays).size, 33, '不应有重复日期');
+  assert.deepEqual(rules.holidaySource.coveredYears, [2026]);
+  assert.match(rules.holidaySource.url, /^https:\/\/www\.gov\.cn\//);
+  assert.match(rules.holidaySource.document, /国务院办公厅/);
+  assert.equal(rules.holidaySource.publishedAt, '2025-11-04');
+
+  // 抽查 3 个「工作日型」节假日（周一/周五）——它们必须全天空闲
+  for (const [month, day] of [[2, 16], [5, 4], [10, 5]]) {
+    const result = peakValleyAt(beijing(2026, month, day, 10, 0), rules);
+    assert.equal(result.tier, 'idle', `2026-${month}-${day} 应为空闲（法定节假日）`);
+    assert.equal(result.basis, 'holiday');
+    assert.equal(result.holiday, true);
+  }
+
+  // 对照：同月里非节假日的周一仍是高峰（证明确实是"节假日"在起作用，而非周一被整体放宽）
+  assert.equal(peakValleyAt(beijing(2026, 10, 12, 10, 0), rules).tier, 'peak');
+
+  // 调休上班的周末仍按空闲（官方计价口径：周末一律空闲）——以 2026-10-10 国庆调休日为例
+  const makeupWorkday = peakValleyAt(beijing(2026, 10, 10, 10, 0), rules);
+  assert.equal(makeupWorkday.tier, 'idle');
+  assert.equal(makeupWorkday.basis, 'weekend');
 });
 
 test('默认规则与 DEEPSEEK_PEAK_WINDOWS 常量一致（防止两处口径漂移）', () => {
